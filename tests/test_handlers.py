@@ -39,6 +39,21 @@ def create_contract(*funcs):
 def test_it():
     req = {"IsA": "Request"}
 
+    def handler(claims, log, metrics, request):
+        log("Calling the handler")
+        metrics("Called", 1)
+        log(claims)
+        log(request)
+        return request
+
+    view = create_handler(add_metrics, add_logger, add_auth, add_no_dep, handler)
+
+    assert view(req) == req
+
+
+def test_it_with_extra_params():
+    req = {"IsA": "Request"}
+
     def handler(claims, log, metrics, request, org_id, group_id=None):
         log("Calling the handler")
         metrics("Called", 1)
