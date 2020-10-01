@@ -1,5 +1,6 @@
 from functools import partial
 from functools import reduce
+from functools import wraps
 from typing import Type
 
 import pytest
@@ -36,6 +37,19 @@ def create_contract(*funcs):
     return partial(create_handler, *funcs)
 
 
+def wrapped(*dependencies):
+    def decorator(handler):
+        chain = [handler, *reversed(dependencies)]
+
+        @wraps(handler)
+        def wrapped_handler(*args, **kwargs):
+            return reduce(lambda a, b: partial(b, a), chain)(*args, **kwargs)
+
+        return wrapped_handler
+
+    return decorator
+
+
 def test_it():
     req = {"IsA": "Request"}
 
@@ -49,6 +63,36 @@ def test_it():
     view = create_handler(add_metrics, add_logger, add_auth, add_no_dep, handler)
 
     assert view(req) == req
+
+
+def test_it_decorator():
+    req = {"IsA": "Request"}
+
+    @wrapped(add_metrics, add_logger, add_auth, add_no_dep)
+    def handler(claims, log, metrics, request):
+        log("Calling the handler")
+        metrics("Called", 1)
+        log(claims)
+        log(request)
+        return request
+
+    assert handler(req) == req
+
+
+def test_decorator_contract():
+    req = {"IsA": "Request"}
+
+    my_dependencies = wrapped(add_metrics, add_logger, add_auth, add_no_dep)
+
+    @my_dependencies
+    def handler(claims, log, metrics, request):
+        log("Calling the handler")
+        metrics("Called", 1)
+        log(claims)
+        log(request)
+        return request
+
+    assert handler(req) == req
 
 
 def test_it_with_extra_params():
